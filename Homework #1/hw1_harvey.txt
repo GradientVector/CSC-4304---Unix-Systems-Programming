@@ -1,0 +1,285 @@
+/*******************************
+CSC 4304 - Systems Programming
+Louisiana State University - Fall 2010
+Homework Assignment #1
+Due: September 9, 2010
+Student: John Timothy Harvey
+********************************/
+
+
+//Problem #1:
+//----------------------------------------------------------------------------------------------------------------
+
+#include <stdio.h>	
+
+#define COPY 0	//represents that elements still need to be copied
+#define PAD  1  //represents that '\0' has been encountered and the rest of the array should be padded with '\0'
+
+char* my_strncpy(char* destination, const char* source, size_t numCharsToCopy);
+
+main()
+{
+	char message1[] = "Hello World!";
+	char message2[] = "You are amazing!!!";
+	
+	printf("MESSAGE1: %s\n", message1);
+	printf("MESSAGE2: %s\n", message2);
+
+	my_strncpy(message2, message1, 10);
+	
+	printf("MESSAGE2 AFTER MY_STRNCPY(): %s\n", message2);
+
+
+	return 0;
+}
+
+char* my_strncpy(char* destination, const char* source, size_t numCharsToCopy)
+{
+	int i;
+	int state = COPY;
+	
+	for (i = 0; i < numCharsToCopy; i++)
+	{
+		if (state == COPY)
+		{
+			//copy the source to the destination
+			destination[i] = source[i];
+
+			if (source[i] == '\0')
+			{
+				//the end of the source string has been reached
+				state = PAD; 
+			}		
+		} 
+		else //state is PAD
+		{
+			//pad the remainder of the string with '\0' characters
+			destination[i] = '\0';
+		} 
+	}
+
+	return destination;	
+}
+
+
+/*
+Output of the program:
+
+MESSAGE1: Hello World!
+MESSAGE2: You are amazing!!!
+MESSAGE2 AFTER MY_STRNCPY(): Hello Worlazing!!!
+
+*/
+
+
+
+//Problem #2:
+//----------------------------------------------------------------------------------------------------------------
+
+#include <stdio.h>
+
+int my_strcmp(const char* cs, const char* ct);
+
+main()
+{
+    char message1[] = "Hello World!";
+    char message2[] = "Hello World!";
+    char message3[] = "Dare to be different!";
+    char message4[] = "Now is the time to act!";
+
+    printf("Message 1: \"%s\"\n", message1);
+    printf("Message 2: \"%s\"\n", message2);
+    printf("Message 3: \"%s\"\n", message3);
+    printf("Message 4: \"%s\"\n", message4);
+
+    printf("Comparison of message 1 and 2: %d\n", my_strcmp(message1, message2));
+    printf("Comparison of message 1 and 3: %d\n", my_strcmp(message1, message3));
+    printf("Comparison of message 1 and 4: %d\n", my_strcmp(message1, message4));
+
+    return 0;
+}
+
+
+int my_strcmp(const char* cs, const char* ct)
+{
+	int i = 0;
+
+    //compare both strings until the end of one or both string has been reached
+	while (cs[i] != '\0' && ct[i] != '\0')
+	{
+		if (cs[i] == ct[i])
+		{
+			i++;
+		}
+		else if (cs[i] < ct[i])
+		{
+			return -1;
+		}
+		else if (cs[i] > ct[i])
+		{
+			return 1;
+		}
+	}
+	
+	if (cs[i] == '\0' && ct[i] == '\0')
+	{
+        //the strings are equal
+		return 0;
+	}
+	else if (cs[i] == '\0')
+	{
+        //cs[] comes before ct[]
+		return -1;
+	}
+	else if (ct[i] == '\0')
+	{
+        //ct[] comes before cs[]
+		return 1;
+	}
+}
+
+
+/*
+Output of the program:
+
+Message 1: "Hello World!"
+Message 2: "Hello World!"
+Message 3: "Dare to be different!"
+Message 4: "Now is the time to act!"
+Comparison of message 1 and 2: 0
+Comparison of message 1 and 3: 1
+Comparison of message 1 and 4: -1
+
+*/
+
+
+
+//Problem #3:
+//----------------------------------------------------------------------------------------------------------------
+
+#include <stdio.h>
+
+struct data {
+    int field1;
+    int field2;
+    int field3;
+};
+
+void add_fields(struct data* dataset);
+
+main()
+{
+    //create and initialize the structure
+    struct data theData;
+    theData.field1 = 10;
+    theData.field2 = 20;
+    theData.field3 = 100;
+
+    //print the initialized values
+    printf("Scructure Values:\n");
+    printf("Field1: %d\n", theData.field1);
+    printf("Field2: %d\n", theData.field2);
+    printf("Field3: %d\n", theData.field3);
+
+    //call the add_fields method
+    add_fields(&theData);
+
+    //print the values after the add_fields call
+    printf("Structure Vales After Call to add_fields():\n");
+    printf("Field1: %d\n", theData.field1);
+    printf("Field2: %d\n", theData.field2);
+    printf("Field3: %d\n", theData.field3);
+
+    return 0;
+}
+
+void add_fields(struct data* dataset)
+{
+    dataset->field3 = dataset->field1 + dataset->field2;
+}
+
+
+
+/*
+Output of the program:
+
+Scructure Values:
+Field1: 10
+Field2: 20
+Field3: 100
+Structure Vales After Call to add_fields():
+Field1: 10
+Field2: 20
+Field3: 30
+
+*/
+
+
+
+
+//Problem #4:
+//----------------------------------------------------------------------------------------------------------------
+
+#include <stdio.h>
+#include <sys/file.h>
+
+#define BUFFERSIZE 1
+
+main(int argc, char *argv[])
+{
+    int fd1, fd2;
+    char buffer[BUFFERSIZE];
+    int numBytes;
+    long fileSize;
+
+    //check the number of input arguments
+    if (argc != 3)
+    {
+        printf("Error: Program requires two file names as arguments\n");
+        return -1;
+    }
+    
+    //check if the first file can be opened for reading
+    if ((fd1 = open(argv[1], O_RDONLY, 0)) < 0)
+    {    
+        printf("Error: Unable to open file %s for reading!\n", argv[1]);
+        return -1;
+    }
+
+    //check if the first file can be opened for writing
+    if ((fd2 = creat(argv[2], 0755)) < 0)
+    {
+        printf("Error: Unable to open file %s for writing!\n", argv[2]);
+        return -1;
+    }    
+        
+    //seek to just before the end of the reading file and determine its size
+    fileSize = lseek(fd1, -1L, 2);      
+  
+    //copy the first file to the second file in reverse order
+    while ((fileSize >= 0) && ((numBytes = read(fd1, buffer, BUFFERSIZE)) > 0))
+    {
+        if (write(fd2, buffer, numBytes) != numBytes)
+        {
+            printf("Error: Unable to write file %s!", argv[2]);
+            return -1;        
+        }
+        
+        //seek to the previous character in the reading file
+        fileSize = lseek(fd1, -2, 1);
+    }       
+
+    if (numBytes < 0)
+    {
+        printf("Error: Unable to read file %s!", argv[1]);
+        return -1;        
+    }
+    
+    //close the files
+    close(fd1);
+    close(fd2);
+
+    return 0;
+}
+
+

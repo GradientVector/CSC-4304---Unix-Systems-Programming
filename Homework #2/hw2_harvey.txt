@@ -1,0 +1,225 @@
+/*******************************
+CSC 4304 - Systems Programming
+Louisiana State University - Fall 2010
+Homework Assignment #2
+Due: October 7, 2010
+Student: John Timothy Harvey
+********************************/
+
+
+//Problem #1:
+//----------------------------------------------------------------------------------------------------------------
+
+Part (a):
+  The function on the left will be more efficient because the read() function call immediately performs a system call to retrieve the input character and puts it in the j variable. The function on the left uses the fread() function, which first reads the character into a buffer, and then puts it in the j variable. Thus the function on the left takes longer to put the character in the j buffer (not much longer, but it can make a difference when dealing with large input).
+  
+Part (b):
+
+  #include <fcnt1.h>
+  #include "dlist.h"  
+    
+  Dlist my_file_to_dlist(char *fn)
+  {  
+    int n_ints;
+    Dlist d;
+    int i;
+    int *j;
+    int fd;
+    
+    fd = open(fn, O_RDONLY);
+    
+    d = make_dl();
+    read(fd, &n_ints, sizeof(int));
+    j = malloc(n_ints * sizeof(int));
+    read(fd, &j, n_ints); // my version reads the entire file in one go 
+    for (i = 0; i < n_ints; i++) // iterate over the array and put the values into the list
+    {
+      
+      dl_insert_b(d, j[i]);
+    }
+    free(j);
+    close(fd);
+    return d;
+  }
+
+This is efficient code because the read() function call uses a larger buffer. This larger buffer results in fewer system calls.
+
+
+
+//Problem #2:
+//----------------------------------------------------------------------------------------------------------------
+
+  When the input sequence reaches the position of the arrow, the directory contains three files with names f1, f2, and f3, where f1 and f2 both have the same inode number, and f3 has a different inode number. Disk storage is allocated for only one copy of the text "This is file 1." f1 and f2 both point to this information via inode number, while f3 points to it by name. 
+  
+  When "rm f1" is called, the file f1 is deleted, but the disk storage is not yet deallocated because there is still another hard link to the file. The kernel knows this because the context for the file holds the number of links still pointing to the file.
+  
+  When "rm f2" is called, the file f2 is deleted, and the disk storage is deallocated because there are no more hard links to the file.
+  
+  When "rm f3" is called, the file f3 is deleted. Before this call, the file f3 was a dangling reference, because the previous remove statement deallocated the disk storage reserved for the file.
+  
+
+
+//Problem #3:
+//----------------------------------------------------------------------------------------------------------------
+
+int pipeToChild[2], pipeToFD[2], originalStandardOutputFD, newfd, pid, status;
+
+int my_popen(char *command)
+{ 
+  // open up the pipes
+  if (pipe(pipeToChild) == -1) 
+  {
+    perror("Cannot create a pipe to child");
+    exit(1);
+  }
+  if (pipe(pipeToFD) == -1) 
+  {
+    perror("Cannot create a pipe to fd");
+    exit(1);
+  }
+  
+  if ((pid = fork()) == -1)
+  {
+    fprintf(stderr, "Cannot fork\n");
+    exit(1);
+  }
+
+  if (pid == 0) // the child process
+  {
+    close(pipeToChild[1]); // close writing end of pipe to child
+    close(pipeToFD[0]); // close reading end of pipe to fd
+    close(0); // close standard input
+    close(1); // close standard output
+    newfd = dup(pipeToChild[0]); // duplicate reading end of pipe to child
+    if (newfd != 0)
+    {
+      fprintf(stderr, "Dupe failed on reading end of pipe to child\n");
+      exit(1);
+    }
+    newfd = dup(pipeToFD[1]); // duplicate writing end of pipe to fd
+    if (newfd != 1)
+    {
+      fprintf(stderr, "Dupe failed on writing end of pipe to fd\n");
+      exit(1);
+    }    
+    execl("/bin/sh", "sh", "-c", command, (char *)0);
+    _exit(127) // execl error
+  }
+  else // the parent process
+  {
+    close(pipeToChild[0]); // close reading end of pipe to child
+    close(pipeToFD[1]); // close writing end of pipe to fd
+    originalStandardOutputFD = dup(1); // save the original standard output fd
+    close(1); // close standard output
+    newfd = dup(pipeToChild[1]); // duplicate writing end of pipe to child
+    if (newfd != 1)
+    {
+      fprintf(stderr, "Dupe failed on writing end of pipe to child\n");
+      exit(1);
+    }
+    return pipeToFD[0]; // return the reading end of the pipe to fd
+  }
+}
+
+int my_pclose(int fd)
+{
+  while (waitpid(pid, &status, 0) < 0) // wait for the command to finish
+  {
+    // close the remaining fd
+    close(pipeToChild[1]);
+    close(pipeToFD[0]);
+    close(1);
+    newfd = dup(originalStandardOutputFD); // duplicate writing end of pipe to child
+    if (newfd != 1)
+    {
+      fprintf(stderr, "Restoration of standard output failed\n");
+      exit(1);
+    }    
+    
+    // restore the original standard output
+    newfd = dup(pipeToChild[1]); // duplicate writing end of pipe to child
+    if (newfd != 1)
+    {
+      fprintf(stderr, "Dupe failed on writing end of pipe to child\n");
+      exit(1);
+    }    
+  
+    if (errno != EINTR)
+    {
+      status = -1; // error other than EINTR from waitpid()
+      break;
+    }
+  }
+  
+  return (status);
+}
+
+
+
+
+//Problem #4:
+//----------------------------------------------------------------------------------------------------------------
+
+Part 1:
+  The kernel generally keeps a linked list of blocks of memory that have been allocated by calls to malloc, calloc, and realloc. Whenever free() is called, it searches the linked list and compares the pointers in each node of the list to the pointer passed into free. Each node of the list holds additional information, such as the size of the block of memory associated with that node. That is how free() knows how big the block is.
+  
+Part 2:
+  Bad arguments to free() include a pointer to memory that has already been freed by a call to free() and a pointer to memory that was not allocated using a call to malloc, calloc, or realloc. One possible result of passing bad arguments to free() include freeing memory unintentionally that is still in use elsewhere in the program, which leads to bad data or corrupted program instructions. Another possible result is that the program will immediately terminate (dependent on the implementation of free()).
+  
+Part 3:
+  One way to ensure that bad arguments to free are recognized is to check the pointer passed to free against the pointers in the linked list representing allocated memory blocks. If the pointer does not match the pointer of any node in the linked list, then that pointer does not point to memory allocated by malloc, calloc, or realloc (or it points to memory that has already been freed), and it is a bad argument.
+
+
+
+//Problem #5:
+//----------------------------------------------------------------------------------------------------------------
+
+Part (a):
+  The main difference between POSIX signals and real-time signals is that the real-time signals are queued, not just registered. Additionally, the real-time signals contain extra information, such as the source of the the signal and an optional data value.
+
+Part (b):
+  
+  #include <stdio.h>
+  #include <signal.h>
+
+  void inthandler();
+
+  int main(int argc, char *argv[])
+  {
+    int i;
+    struct sigaction newhandler;
+    sigset_t  blocked;
+    void  inthandler();
+    
+    newhandler.sa_handler = inthandler;
+    sigfillset(&blocked);
+    newhandler.sa_mask = blocked;
+    
+    // set up signal handler
+    for (i = 1; i < 31; i++)
+      if (i != SIGKILL && i != SIGSTOP)
+        if (sigaction(i, &newhandler, NULL) == -1)
+          printf("error setting handler for signal %d\n", i);
+    
+    for (i = 10; i > 0; i--)
+    {
+      printf("Counting down: %d\n", i);
+      sleep(1);
+    }
+  }
+
+  void inthandler()
+  {
+    printf("Entering interrupt handler\n");
+    int i;
+    for (i = 10; i > 0; i--)
+    {
+      printf("Counting down: %d\n", i);
+      sleep(1);
+    }
+    printf("Exiting interrupt handler\n");
+  }
+
+
+
+
